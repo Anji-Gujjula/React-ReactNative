@@ -1,0 +1,138 @@
+Step 1:
+
+mkdir websocket-server
+cd websocket-server
+npm init -y
+
+npm install ws
+
+
+Step2 :create  server.js file and copy belo code
+
+const WebSocket = require('ws');
+const fs = require('fs');
+const path = require('path');
+const http = require('http');
+
+const server = http.createServer();
+const wss = new WebSocket.Server({ server });
+
+wss.on('connection', (ws) => {
+  ws.on('message', (message) => {
+    if (message instanceof Buffer) {
+      const filePath = path.join(__dirname, 'uploadedFile');
+      fs.writeFile(filePath, message, (err) => {
+        if (err) {
+          console.error('Error saving file:', err);
+          ws.send('Error saving file');
+        } else {
+          console.log('File saved successfully');
+          ws.send('File saved successfully');
+        }
+      });
+    }
+  });
+});
+
+server.listen(8080, () => {
+  console.log('WebSocket server listening on port 8080');
+});
+
+
+Step 3: Run server
+
+
+node server.js
+
+
+Step 4 :update below code in react WEB APP App.js file
+
+
+
+import React, { useState } from 'react';
+
+const App = () => {
+  const [file, setFile] = useState(null);
+
+  const handleFileChange = (event) => {
+    setFile(event.target.files[0]);
+  };
+
+  const handleUpload = () => {
+    if (!file) return;
+
+    const ws = new WebSocket('ws://localhost:8080');
+
+    ws.onopen = () => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        ws.send(reader.result);
+      };
+      reader.readAsArrayBuffer(file);
+    };
+
+    ws.onmessage = (event) => {
+      console.log('Server response:', event.data);
+      alert(event.data);
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+  };
+
+  return (
+    <div>
+      <input type="file" onChange={handleFileChange} />
+      <button onClick={handleUpload}>Upload File</button>
+    </div>
+  );
+};
+
+export default App;
+
+Step 5: Run React web app : npm start
+
+Step 6 : ###React Native App
+
+// App.js
+import React, { useEffect } from 'react';
+import { SafeAreaView, Button, Alert } from 'react-native';
+import RNFS from 'react-native-fs';
+
+const App = () => {
+  useEffect(() => {
+    const ws = new WebSocket('ws://<your-local-ip>:8080');
+
+    ws.onmessage = async (event) => {
+      if (event.data instanceof ArrayBuffer) {
+        const filePath = `${RNFS.DocumentDirectoryPath}/uploadedFile`;
+        await RNFS.writeFile(filePath, Buffer.from(event.data));
+        Alert.alert('File saved successfully', `File saved at ${filePath}`);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
+
+  const handleTestFileUpload = () => {
+    Alert.alert('Test', 'File upload works only through web app, make sure your web app is correctly sending the file.');
+  };
+
+  return (
+    <SafeAreaView>
+      <Button title="Test File Upload" onPress={handleTestFileUpload} />
+    </SafeAreaView>
+  );
+};
+
+export default App;
+
+
+Step 7: Run React native app
