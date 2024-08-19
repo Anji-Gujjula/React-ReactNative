@@ -1,29 +1,50 @@
 // App.js
-import React from 'react';
-import { View, Text, Button } from 'react-native';
-import axios from 'axios';
-import * as FileSystem from 'expo-file-system';
+import React, { useEffect } from 'react';
+import { SafeAreaView, Button, Alert } from 'react-native';
+import RNFS from 'react-native-fs';
+import HttpServer from 'react-native-http-server';
 
 const App = () => {
-  const [fileUri, setFileUri] = React.useState(null);
+  useEffect(() => {
+    // Start HTTP server
+    const server = new HttpServer({
+      port: 8080, // You can change this to any available port
+      onRequest: handleRequest,
+    });
 
-  const fetchFile = async () => {
-    try {
-      const response = await axios.get('http://<YOUR_REACT_NATIVE_SERVER_URL>:<PORT>/fetch-file', { responseType: 'arraybuffer' });
-      const filePath = FileSystem.documentDirectory + 'downloaded-file';
-      await FileSystem.writeAsStringAsync(filePath, response.data, { encoding: FileSystem.EncodingType.Base64 });
-      setFileUri(filePath);
-      console.log('File saved to:', filePath);
-    } catch (error) {
-      console.error('Error fetching file', error);
+    server.start().then(() => {
+      console.log('HTTP Server started');
+    });
+
+    return () => {
+      server.stop();
+    };
+  }, []);
+
+  const handleRequest = async (req, res) => {
+    if (req.method === 'POST' && req.url === '/upload') {
+      const filePath = `${RNFS.DocumentDirectoryPath}/uploadedFile`;
+
+      req.pipe(RNFS.createWriteStream(filePath));
+
+      req.on('end', () => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('File uploaded successfully');
+      });
+    } else {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not Found');
     }
   };
 
+  const handleTestFileUpload = () => {
+    Alert.alert('Test', 'File upload works only through web app, make sure your web app is correctly sending the file.');
+  };
+
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text>React Native File Receiver</Text>
-      <Button title="Fetch File" onPress={fetchFile} />
-    </View>
+    <SafeAreaView>
+      <Button title="Test File Upload" onPress={handleTestFileUpload} />
+    </SafeAreaView>
   );
 };
 
