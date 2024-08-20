@@ -1,5 +1,9 @@
 npm install -g react-native-cli
 
+npm install -g @react-native-community/cli
+npx @react-native-community/cli init FileReceiverApp
+
+
 npx react-native init FileReceiverApp
 cd FileReceiverApp
 npm install react-native-websocket
