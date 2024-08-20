@@ -42,8 +42,8 @@ const App = () => {
 
         // Send the binary data
         ws.send(arrayBuffer);
-
-        // Close the WebSocket connection
+        
+        // Close the WebSocket connection after sending the data
         ws.close();
       };
 
@@ -63,12 +63,13 @@ const App = () => {
   return (
     <div>
       <input type="file" onChange={handleFileChange} />
-      <button onClick={handleUpload}>Save File</button>
+      <button onClick={handleUpload}>Upload File</button>
     </div>
   );
 };
 
 export default App;
+
 
 
 React native App.js
@@ -153,8 +154,8 @@ wss.on('connection', (ws) => {
   let receivedData = Buffer.alloc(0);
 
   ws.on('message', (message) => {
-    // Check if the message is a string (i.e., the filename)
     if (typeof message === 'string') {
+      // Handle filename
       try {
         fileInfo = JSON.parse(message);
         console.log('Received filename:', fileInfo.filename);
@@ -163,12 +164,13 @@ wss.on('connection', (ws) => {
         ws.send('Error parsing JSON');
       }
     } else if (message instanceof ArrayBuffer || Buffer.isBuffer(message)) {
-      // If the filename is received, proceed to process the binary data
+      // Handle file data
       if (fileInfo && fileInfo.filename) {
         receivedData = Buffer.concat([receivedData, Buffer.from(message)]);
       } else {
         console.error('Filename not received before file data');
         ws.send('Filename not received before file data');
+        ws.close();
       }
     } else {
       console.error('Unexpected message format');
@@ -177,8 +179,8 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    // Save the file when the connection closes, after all data has been received
-    if (fileInfo && receivedData.length > 0) {
+    // Save the file when the connection closes
+    if (fileInfo && fileInfo.filename && receivedData.length > 0) {
       const filePath = path.join(uploadDir, fileInfo.filename);
       fs.writeFile(filePath, receivedData, (err) => {
         if (err) {
