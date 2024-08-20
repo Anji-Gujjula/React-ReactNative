@@ -122,4 +122,64 @@ const App = () => {
 export default App;
 
 
-npx react-native run-android
+server.js file 
+
+
+const WebSocket = require('ws');
+const fs = require('fs');
+const path = require('path');
+const http = require('http');
+
+// Define the directory where files will be saved
+const uploadDir = path.join(__dirname, 'uploadedFile');
+
+// Create the directory if it doesn't exist
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+const server = http.createServer();
+const wss = new WebSocket.Server({ server });
+
+wss.on('connection', (ws) => {
+  let fileInfo = null;
+
+  ws.on('message', (message) => {
+    // If the message is a string, it's expected to be the file info (filename)
+    if (typeof message === 'string') {
+      try {
+        fileInfo = JSON.parse(message);
+      } catch (error) {
+        console.error('Error parsing JSON:', error);
+        ws.send('Error parsing JSON');
+      }
+    } else if (message instanceof ArrayBuffer || Buffer.isBuffer(message)) {
+      // If the message is binary data, it's expected to be the file content
+      if (fileInfo && fileInfo.filename) {
+        const filePath = path.join(uploadDir, fileInfo.filename);
+        const buffer = Buffer.from(message);
+
+        fs.writeFile(filePath, buffer, (err) => {
+          if (err) {
+            console.error('Error saving file:', err);
+            ws.send('Error saving file');
+          } else {
+            console.log('File saved successfully:', filePath);
+            ws.send('File saved successfully');
+          }
+        });
+      } else {
+        console.error('File info not received before binary data');
+        ws.send('File info not received before binary data');
+      }
+    } else {
+      console.error('Unexpected message format');
+      ws.send('Unexpected message format');
+    }
+  });
+});
+
+server.listen(8085, () => {
+  console.log('WebSocket server listening on port 8085');
+});
+
