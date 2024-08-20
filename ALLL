@@ -20,13 +20,16 @@ const wss = new WebSocket.Server({ server });
 wss.on('connection', (ws) => {
   ws.on('message', (message) => {
     if (message instanceof Buffer) {
-      const filePath = path.join(__dirname, 'uploadedFile');
+      // Generate a unique filename to save the uploaded file
+      const filename = `uploadedFile_${Date.now()}`;
+      const filePath = path.join(__dirname, filename);
+
       fs.writeFile(filePath, message, (err) => {
         if (err) {
           console.error('Error saving file:', err);
           ws.send('Error saving file');
         } else {
-          console.log('File saved successfully');
+          console.log('File saved successfully:', filePath);
           ws.send('File saved successfully');
         }
       });
@@ -34,8 +37,8 @@ wss.on('connection', (ws) => {
   });
 });
 
-server.listen(8080, () => {
-  console.log('WebSocket server listening on port 8080');
+server.listen(8085, () => {
+  console.log('WebSocket server listening on port 8085');
 });
 
 
