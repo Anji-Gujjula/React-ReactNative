@@ -31,16 +31,23 @@ const App = () => {
     const ws = new WebSocket('ws://localhost:8085');
 
     ws.onopen = () => {
+      const filename = file.name;
+      
+      // Send the filename first
+      ws.send(JSON.stringify({ filename }));
+
       const reader = new FileReader();
       reader.onload = () => {
         const arrayBuffer = reader.result;
-        const filename = file.name;
 
-        // Send the filename and file data as JSON, with the data as ArrayBuffer
-        ws.send(JSON.stringify({ filename }));
+        // Send the binary data
         ws.send(arrayBuffer);
+
+        // Close the WebSocket connection
+        ws.close();
       };
-      reader.readAsArrayBuffer(file); // Read the file as an ArrayBuffer
+
+      reader.readAsArrayBuffer(file);
     };
 
     ws.onmessage = (event) => {
@@ -56,7 +63,7 @@ const App = () => {
   return (
     <div>
       <input type="file" onChange={handleFileChange} />
-      <button onClick={handleUpload}>Upload File</button>
+      <button onClick={handleUpload}>Save File</button>
     </div>
   );
 };
@@ -143,38 +150,45 @@ const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws) => {
   let fileInfo = null;
+  let receivedData = Buffer.alloc(0);
 
   ws.on('message', (message) => {
-    // If the message is a string, it's expected to be the file info (filename)
+    // Check if the message is a string (i.e., the filename)
     if (typeof message === 'string') {
       try {
         fileInfo = JSON.parse(message);
+        console.log('Received filename:', fileInfo.filename);
       } catch (error) {
         console.error('Error parsing JSON:', error);
         ws.send('Error parsing JSON');
       }
     } else if (message instanceof ArrayBuffer || Buffer.isBuffer(message)) {
-      // If the message is binary data, it's expected to be the file content
+      // If the filename is received, proceed to process the binary data
       if (fileInfo && fileInfo.filename) {
-        const filePath = path.join(uploadDir, fileInfo.filename);
-        const buffer = Buffer.from(message);
-
-        fs.writeFile(filePath, buffer, (err) => {
-          if (err) {
-            console.error('Error saving file:', err);
-            ws.send('Error saving file');
-          } else {
-            console.log('File saved successfully:', filePath);
-            ws.send('File saved successfully');
-          }
-        });
+        receivedData = Buffer.concat([receivedData, Buffer.from(message)]);
       } else {
-        console.error('File info not received before binary data');
-        ws.send('File info not received before binary data');
+        console.error('Filename not received before file data');
+        ws.send('Filename not received before file data');
       }
     } else {
       console.error('Unexpected message format');
       ws.send('Unexpected message format');
+    }
+  });
+
+  ws.on('close', () => {
+    // Save the file when the connection closes, after all data has been received
+    if (fileInfo && receivedData.length > 0) {
+      const filePath = path.join(uploadDir, fileInfo.filename);
+      fs.writeFile(filePath, receivedData, (err) => {
+        if (err) {
+          console.error('Error saving file:', err);
+          ws.send('Error saving file');
+        } else {
+          console.log('File saved successfully:', filePath);
+          ws.send('File saved successfully');
+        }
+      });
     }
   });
 });
@@ -182,4 +196,3 @@ wss.on('connection', (ws) => {
 server.listen(8085, () => {
   console.log('WebSocket server listening on port 8085');
 });
-
