@@ -19,27 +19,35 @@ const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws) => {
   ws.on('message', (message) => {
-    if (message instanceof Buffer) {
-      // Generate a unique filename to save the uploaded file
-      const filename = `uploadedFile_${Date.now()}`;
-      const filePath = path.join(__dirname, filename);
+    // Parse the received message
+    const parsedMessage = JSON.parse(message);
 
-      fs.writeFile(filePath, message, (err) => {
-        if (err) {
-          console.error('Error saving file:', err);
-          ws.send('Error saving file');
-        } else {
-          console.log('File saved successfully:', filePath);
-          ws.send('File saved successfully');
-        }
-      });
-    }
+    // Extract the filename and file data
+    const { filename, fileData } = parsedMessage;
+
+    // Create a full path with the filename
+    const filePath = path.join(__dirname, filename);
+
+    // Convert the fileData from base64 to a binary buffer
+    const buffer = Buffer.from(fileData, 'base64');
+
+    // Write the file to the file system
+    fs.writeFile(filePath, buffer, (err) => {
+      if (err) {
+        console.error('Error saving file:', err);
+        ws.send('Error saving file');
+      } else {
+        console.log('File saved successfully:', filePath);
+        ws.send('File saved successfully');
+      }
+    });
   });
 });
 
 server.listen(8085, () => {
   console.log('WebSocket server listening on port 8085');
 });
+
 
 
 Step 3: Run server
@@ -64,14 +72,19 @@ const App = () => {
   const handleUpload = () => {
     if (!file) return;
 
-    const ws = new WebSocket('ws://localhost:8080');
+    const ws = new WebSocket('ws://localhost:8085');
 
     ws.onopen = () => {
+      // Read the file and send it as base64
       const reader = new FileReader();
       reader.onload = () => {
-        ws.send(reader.result);
+        const fileData = reader.result.split(',')[1]; // Get the base64 string after the comma
+        const filename = file.name;
+
+        // Send the filename and file data as JSON
+        ws.send(JSON.stringify({ filename, fileData }));
       };
-      reader.readAsArrayBuffer(file);
+      reader.readAsDataURL(file); // Read the file as a data URL (base64)
     };
 
     ws.onmessage = (event) => {
@@ -93,6 +106,7 @@ const App = () => {
 };
 
 export default App;
+
 
 Step 5: Run React web app : npm start
 
