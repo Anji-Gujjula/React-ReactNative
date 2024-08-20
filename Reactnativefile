@@ -1,10 +1,9 @@
-npm install -g react-native-cli
 
 npm install -g @react-native-community/cli
 npx @react-native-community/cli init FileReceiverApp
 
 
-npx react-native init FileReceiverApp
+
 cd FileReceiverApp
 npm install react-native-websocket
 npm install react-native-fs
@@ -15,35 +14,93 @@ OPEN   --->  android/app/src/main/AndroidManifest.xml
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
 <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
 
+web app.js
+
+import React, { useState } from 'react';
+
+const App = () => {
+  const [file, setFile] = useState(null);
+
+  const handleFileChange = (event) => {
+    setFile(event.target.files[0]);
+  };
+
+  const handleUpload = () => {
+    if (!file) return;
+
+    const ws = new WebSocket('ws://localhost:8085');
+
+    ws.onopen = () => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const arrayBuffer = reader.result;
+        const filename = file.name;
+
+        // Send the filename and file data as JSON, with the data as ArrayBuffer
+        ws.send(JSON.stringify({ filename }));
+        ws.send(arrayBuffer);
+      };
+      reader.readAsArrayBuffer(file); // Read the file as an ArrayBuffer
+    };
+
+    ws.onmessage = (event) => {
+      console.log('Server response:', event.data);
+      alert(event.data);
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+  };
+
+  return (
+    <div>
+      <input type="file" onChange={handleFileChange} />
+      <button onClick={handleUpload}>Upload File</button>
+    </div>
+  );
+};
+
+export default App;
 
 
-App.js
+React native App.js
 
 
 import React, { useEffect } from 'react';
-import { View, Text, Button, Alert } from 'react-native';
-import WebSocket from 'react-native-websocket';
+import { SafeAreaView, Button, Alert } from 'react-native';
 import RNFS from 'react-native-fs';
 
 const App = () => {
   useEffect(() => {
-    const ws = new WebSocket('ws://yourserver.com');
+    const ws = new WebSocket('ws://<your-local-ip>:8085'); // Ensure you use the correct local IP and port
 
     ws.onopen = () => {
-      console.log('WebSocket connection opened');
+      console.log('Connected to WebSocket server');
     };
 
-    ws.onmessage = (e) => {
-      const data = e.data; // Assume binary data
-      saveFile(data);
+    let receivedFilename = null;
+
+    ws.onmessage = async (event) => {
+      if (typeof event.data === 'string') {
+        // Assume the first message is the filename
+        receivedFilename = JSON.parse(event.data).filename;
+      } else if (event.data instanceof ArrayBuffer) {
+        if (receivedFilename) {
+          const filePath = `${RNFS.DocumentDirectoryPath}/${receivedFilename}`;
+          const buffer = Buffer.from(event.data);
+
+          // Save the file
+          await RNFS.writeFile(filePath, buffer.toString('base64'), 'base64');
+          Alert.alert('File saved successfully', `File saved at ${filePath}`);
+        } else {
+          console.error('Filename not received before file data');
+        }
+      }
     };
 
-    ws.onerror = (e) => {
-      console.error('WebSocket error', e.message);
-    };
-
-    ws.onclose = (e) => {
-      console.log('WebSocket connection closed', e.code, e.reason);
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
     };
 
     return () => {
@@ -51,27 +108,18 @@ const App = () => {
     };
   }, []);
 
-  const saveFile = (fileData) => {
-    const path = RNFS.DocumentDirectoryPath + '/downloadedFile';
-    RNFS.writeFile(path, fileData, 'base64')
-      .then(() => {
-        Alert.alert('File saved', 'The file has been successfully saved');
-      })
-      .catch((err) => {
-        console.error('File save error:', err.message);
-      });
+  const handleTestFileUpload = () => {
+    Alert.alert('Test', 'File upload works only through web app, make sure your web app is correctly sending the file.');
   };
 
   return (
-    <View>
-      <Text>WebSocket File Receiver</Text>
-      <Button title="Connect" onPress={/* Trigger WebSocket connection */} />
-    </View>
+    <SafeAreaView>
+      <Button title="Test File Upload" onPress={handleTestFileUpload} />
+    </SafeAreaView>
   );
 };
 
 export default App;
-
 
 
 npx react-native run-android
