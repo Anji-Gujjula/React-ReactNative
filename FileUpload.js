@@ -31,6 +31,7 @@ const FileUpload = () => {
         const fileData = e.target.result;
         socket.emit('file-upload', { name: file.name, data: fileData });
         console.log('File uploaded:', file.name);
+        alert(`File ${file.name} uploaded successfully!`);
       };
       reader.readAsDataURL(file);
     }
