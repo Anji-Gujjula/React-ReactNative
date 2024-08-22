@@ -1,4 +1,3 @@
-// App.js
 import React, { useEffect } from 'react';
 import { View, Text, Alert } from 'react-native';
 import io from 'socket.io-client';
@@ -8,12 +7,26 @@ const socket = io('http://localhost:4000');
 
 const App = () => {
   useEffect(() => {
+    socket.on('connect', () => {
+      console.log('Connected to WebSocket server');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Connection error:', err);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from WebSocket server');
+    });
+
     socket.on('file-saved', (file) => {
+      console.log('File received:', file.name);
       const filePath = `${RNFS.DocumentDirectoryPath}/${file.name}`;
       const fileData = file.data.split(',')[1]; // Remove data URL prefix
 
       RNFS.writeFile(filePath, fileData, 'base64')
         .then(() => {
+          console.log('File written to:', filePath);
           Alert.alert('File saved', `File saved to ${filePath}`);
         })
         .catch((err) => {
